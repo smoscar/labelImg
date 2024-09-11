@@ -277,6 +277,10 @@ class MainWindow(QMainWindow, WindowMixin):
 
         create = action(get_str('crtBox'), self.create_shape,
                         'w', 'new', get_str('crtBoxDetail'), enabled=False)
+
+        create_tennis = action(get_str('crtTBox'), self.create_tennis_shape,
+                        'e', 'newTe', get_str('crtTBoxDetail'), enabled=False)
+
         delete = action(get_str('delBox'), self.delete_selected_shape,
                         'Delete', 'delete', get_str('delBoxDetail'), enabled=False)
         copy = action(get_str('dupBox'), self.copy_selected_shape,
@@ -381,7 +385,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Store actions for further handling.
         self.actions = Struct(save=save, save_format=save_format, saveAs=save_as, open=open, close=close, resetAll=reset_all, deleteImg=delete_image,
-                              lineColor=color1, create=create, delete=delete, edit=edit, copy=copy,
+                              lineColor=color1, create=create, create_tennis=create_tennis, delete=delete, edit=edit, copy=copy,
                               createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
                               shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
                               zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
@@ -449,7 +453,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            open, open_dir, change_save_dir, open_next_image, open_prev_image, verify, save, save_format, None, create, copy, delete, None,
+            open, open_dir, change_save_dir, open_next_image, open_prev_image, verify, save, save_format, None, create, create_tennis, copy, delete, None,
             zoom_in, zoom, zoom_out, fit_window, fit_width, None,
             light_brighten, light, light_darken, light_org)
 
@@ -624,6 +628,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.dirty = False
         self.actions.save.setEnabled(False)
         self.actions.create.setEnabled(True)
+        self.actions.create_tennis.setEnabled(True)
 
     def toggle_actions(self, value=True):
         """Enable/Disable widgets which depend on an opened image."""
@@ -704,7 +709,16 @@ class MainWindow(QMainWindow, WindowMixin):
     def create_shape(self):
         assert self.beginner()
         self.canvas.set_editing(False)
+        self.canvas.can_draw_rotated_rect = False
         self.actions.create.setEnabled(False)
+        self.actions.create_tennis.setEnabled(False)
+    
+    def create_tennis_shape(self):
+        assert self.beginner()
+        self.canvas.set_editing(False)
+        self.canvas.can_draw_rotated_rect = True
+        self.actions.create.setEnabled(False)
+        self.actions.create_tennis.setEnabled(False)
 
     def toggle_drawing_sensitive(self, drawing=True):
         """In the middle of drawing, toggling between modes should be disabled."""
@@ -715,6 +729,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.canvas.set_editing(True)
             self.canvas.restore_cursor()
             self.actions.create.setEnabled(True)
+            self.actions.create_tennis.setEnabled(True)
 
     def toggle_draw_mode(self, edit=True):
         self.canvas.set_editing(edit)
@@ -837,7 +852,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def load_labels(self, shapes):
         s = []
-        for label, points, line_color, fill_color, difficult in shapes:
+        for label, points, line_color, fill_color, difficult in shapes: # self.label_file.shapes
             shape = Shape(label=label)
             for x, y in points:
 
@@ -847,7 +862,9 @@ class MainWindow(QMainWindow, WindowMixin):
                     self.set_dirty()
 
                 shape.add_point(QPointF(x, y))
-            shape.difficult = difficult
+            # shape.difficult = difficult
+            # shape.direction = direction
+            shape.is_rotated = False
             shape.close()
             s.append(shape)
 
@@ -888,7 +905,10 @@ class MainWindow(QMainWindow, WindowMixin):
                         fill_color=s.fill_color.getRgb(),
                         points=[(p.x(), p.y()) for p in s.points],
                         # add chris
-                        difficult=s.difficult)
+                        difficult=s.difficult,
+                        direction=s.direction,
+                        center=s.center,
+                        is_rotated=s.is_rotated)
 
         shapes = [format_shape(shape) for shape in self.canvas.shapes]
         # Can add different annotation formats here
@@ -984,6 +1004,7 @@ class MainWindow(QMainWindow, WindowMixin):
             if self.beginner():  # Switch to edit mode.
                 self.canvas.set_editing(True)
                 self.actions.create.setEnabled(True)
+                self.actions.create_tennis.setEnabled(True)
             else:
                 self.actions.editMode.setEnabled(True)
             self.set_dirty()

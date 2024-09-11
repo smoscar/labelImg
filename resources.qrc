@@ -8,6 +8,7 @@
 <file alias="file">resources/icons/file.png</file>
 <file alias="labels">resources/icons/labels.png</file>
 <file alias="new">resources/icons/objects.png</file>
+<file alias="newTe">resources/icons/tennis.png</file>
 <file alias="close">resources/icons/close.png</file>
 <file alias="fit-width">resources/icons/fit-width.png</file>
 <file alias="fit-window">resources/icons/fit-window.png</file>

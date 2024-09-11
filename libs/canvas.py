@@ -11,6 +11,7 @@ except ImportError:
 
 from libs.shape import Shape
 from libs.utils import distance
+import math
 
 CURSOR_DEFAULT = Qt.ArrowCursor
 CURSOR_POINT = Qt.PointingHandCursor
@@ -65,6 +66,7 @@ class Canvas(QWidget):
         self.setFocusPolicy(Qt.WheelFocus)
         self.verified = False
         self.draw_square = False
+        self.can_draw_rotated_rect = True
 
         # initialisation for panning
         self.pan_initial_pos = QPoint()
@@ -166,12 +168,15 @@ class Canvas(QWidget):
 
         # Polygon copy moving.
         if Qt.RightButton & ev.buttons():
-            if self.selected_shape_copy and self.prev_point:
-                self.override_cursor(CURSOR_MOVE)
-                self.bounded_move_shape(self.selected_shape_copy, pos)
-                self.repaint()
-            elif self.selected_shape:
-                self.selected_shape_copy = self.selected_shape.copy()
+            # if self.selected_shape_copy and self.prev_point:
+            #     self.override_cursor(CURSOR_MOVE)
+            #     self.bounded_move_shape(self.selected_shape_copy, pos)
+            #     self.repaint()
+            # elif self.selected_shape:
+            #     self.selected_shape_copy = self.selected_shape.copy()
+            #     self.repaint()
+            if self.selected_vertex() and self.selected_shape.is_rotated: # TODO add this as a first option and uncomment above
+                self.bounded_rotate_shape(pos)
                 self.repaint()
             return
 
@@ -332,7 +337,7 @@ class Canvas(QWidget):
             self.current.add_point(QPointF(min_x, max_y))
             self.finalise()
         elif not self.out_of_pixmap(pos):
-            self.current = Shape()
+            self.current = Shape(is_rotated=self.can_draw_rotated_rect)
             self.current.add_point(pos)
             self.line.points = [pos, pos]
             self.set_hiding()
@@ -432,6 +437,35 @@ class Canvas(QWidget):
             right_shift = QPointF(0, shift_pos.y())
         shape.move_vertex_by(right_index, right_shift)
         shape.move_vertex_by(left_index, left_shift)
+    
+    def bounded_rotate_shape(self, pos):
+        index, shape = self.h_vertex, self.h_shape
+        point = shape[index]
+
+        angle = self.get_angle(shape.center, pos, point)
+        for i, p in enumerate(shape.points):
+            if self.out_of_pixmap(shape.rotate_point(p, angle)):
+                return
+        shape.rotate(angle)
+        self.prev_point = pos
+
+    def get_angle(self, center, p1, p2):
+        dx1 = p1.x() - center.x();
+        dy1 = p1.y() - center.y();
+
+        dx2 = p2.x() - center.x();
+        dy2 = p2.y() - center.y();
+
+        c = math.sqrt(dx1 * dx1 + dy1 * dy1) * math.sqrt(dx2 * dx2 + dy2 * dy2)
+        if c == 0: return 0
+        y = (dx1 * dx2 + dy1 * dy2) / c
+        if y>1: return 0
+        angle = math.acos(y)
+
+        if (dx1 * dy2 - dx2 * dy1)>0:
+            return angle
+        else:
+            return -angle
 
     def bounded_move_shape(self, shape, pos):
         if self.out_of_pixmap(pos):
@@ -520,7 +554,7 @@ class Canvas(QWidget):
             if (shape.selected or not self._hide_background) and self.isVisible(shape):
                 shape.fill = shape.selected or shape == self.h_shape
                 shape.paint(p)
-        if self.current:
+        if self.current and not self.current.is_rotated:
             self.current.paint(p)
             self.line.paint(p)
         if self.selected_shape_copy:
@@ -536,6 +570,19 @@ class Canvas(QWidget):
             brush = QBrush(Qt.BDiagPattern)
             p.setBrush(brush)
             p.drawRect(int(left_top.x()), int(left_top.y()), int(rect_width), int(rect_height))
+            if self.current.is_rotated:
+                # Draw tennis court
+                half_court_height, service_box_height, no_mans_land_height, alley_width, service_box_width = self.current.getCourtSizes(rect_width, rect_height)
+                # Outer court
+                p.drawRect(int(left_top.x()), int(left_top.y()), int(rect_width), int(rect_height))
+                # Court alleys
+                p.drawRect(int(left_top.x()), int(left_top.y()), int(alley_width), int(rect_height))
+                p.drawRect(int(left_top.x() + rect_width - alley_width), int(left_top.y()), int(alley_width), int(rect_height))
+                # Service boxes
+                p.drawRect(int(left_top.x() + alley_width), int(left_top.y() + no_mans_land_height), int(service_box_width), int(service_box_height))
+                p.drawRect(int(left_top.x() + alley_width + service_box_width), int(left_top.y() + no_mans_land_height), int(service_box_width), int(service_box_height))
+                p.drawRect(int(left_top.x() + alley_width), int(left_top.y() + no_mans_land_height + service_box_height), int(service_box_width), int(service_box_height))
+                p.drawRect(int(left_top.x() + alley_width + service_box_width), int(left_top.y() + no_mans_land_height + service_box_height), int(service_box_width), int(service_box_height))
 
         if self.drawing() and not self.prev_point.isNull() and not self.out_of_pixmap(self.prev_point):
             p.setPen(QColor(0, 0, 0))
@@ -573,6 +620,8 @@ class Canvas(QWidget):
 
     def finalise(self):
         assert self.current
+        self.current.is_rotated = self.can_draw_rotated_rect
+        print(self.can_draw_rotated_rect)
         if self.current.points[0] == self.current.points[-1]:
             self.current = None
             self.drawingPolygon.emit(False)
