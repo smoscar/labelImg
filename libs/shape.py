@@ -232,9 +232,11 @@ class Shape(object):
 
     def move_by(self, offset):
         self.points = [p + offset for p in self.points]
+        self.center += offset
 
     def move_vertex_by(self, i, offset):
         self.points[i] = self.points[i] + offset
+        self.center = QPointF((self.points[0].x()+self.points[2].x()) / 2, (self.points[0].y()+self.points[2].y()) / 2)
 
     def highlight_vertex(self, i, action):
         self._highlight_index = i
